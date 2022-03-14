@@ -1,47 +1,43 @@
-
 import threading
 import time
 
-#custom class imports
+#custom  class imports
 from StepperController import *
 from ADCController import *
 from Logger import *
-from Grapher import *
-
-#TODO: remove
-import numpy as np
+from hx711 import HX711
 
 class Indenter():
 
-    def __init__(self, graph):
-        self.graph = Grapher(graph)
+    def __init__(self, mplWidget):
+        self.MPLWidget = mplWidget
         
         # set up the motor controller and ADC controller
         self.Stepper = StepperController(16)
         self.ADC = ADCController()
         self.Logger = Logger()
 
+        self.x = []
+        self.step = []
+        self.load = []
+
 
     def loadAndShowResults(self, filename):
-        x, step, load = self.Logger.loadFile(filename)
-        self.graph.setData(x, step, load)
+        self.x, self.step, self.load = self.Logger.loadFile(filename)
+        self.MPLWidget.plotData(self.x, self.step, self.load)
 
 
     def saveResults(self, filename):
-        x, step, load = self.graph.getData()
-        self.Logger.saveFile(filename, x, step, load)
+        self.Logger.saveFile(filename, self.x, self.step, self.load)
 
-
-    def clearResults(self):
-        self.graph.clear()
 
     def compareResults(self, filename):
-        # TODO: load data from another CSV and overlay it on the current graph
+        # to be implemented - load data from another CSV and overlay it on the current graph
         pass
 
 
     def startJogUp(self):
-        self.Stepper.startMovingUp(1000)
+        self.Stepper.startMovingUp(2000)
 
 
     def stopJogging(self):
@@ -49,16 +45,14 @@ class Indenter():
 
 
     def startJogDown(self):
-        self.Stepper.startMovingDown(1000)
+        self.Stepper.startMovingDown(2000)
 
 
     def takeStiffnessMeasurement(self, load):
-        global terminate
-        self.graph.clear()
-        time.sleep(1)
         # launch a thread to handle taking the stiffness measurement
-        self.measurementLoop = threading.Thread(name = 'myDataLoop', target = measurementLoop, daemon = True, args = (self.graph,))
-        self.measurementLoop.start()
+        #TODO: make sure that only one instance of this thread runs at a time!!!
+        self.measurementLoopHandle = threading.Thread(name = 'measurementLoop', target = measurementLoop, args=(load, 1500 ))
+        self.measurementLoopHandle.start()
 
 
     def emergencyStop(self):
@@ -67,23 +61,86 @@ class Indenter():
         killMeasurement = True
 
         # TODO: start backing off the indenter to the home position here
+        self.Stepper.stopMoving()
 
         print("stopped")
 
 
+    def shutdown(self):
+        Stepper.stopMoving()
+
+
 killMeasurement = False
-def measurementLoop(graph):
-    global killMeasurement
-
-    logger = Logger()
-    x, step, load = logger.loadFile("./samples/2021-12-5-15-19-34.csv")
-
+displacement = 0
+TOLERANCE = 50
+def measurementLoop(targetLoad, stepRate):
+    global killMeasurement, displacement
+    
+    # set up the HX711
+    #hx = HX711(5, 6)
+    hx = HX711(29, 31)
+    hx.set_offset(8214368.3125)
+    hx.set_scale(243.8564841498559)
+    stepper = StepperController(16)
+    displacement = 0
     killMeasurement = False
-    i=0
-    while(not killMeasurement):
-        if(i >= x[-1]):
-            killMeasurement = True
-        graph.addDataPoint(step[i], load[i])
-        time.sleep(0.001)
-        i += 1
+    
+    try:
+        # move down until the target load is achieved
+        load = hx.get_grams()
+        stepper.startMovingDown(stepRate)
+        while(load < targetLoad and not killMeasurement):
+            hx.power_down()
+            time.sleep(.001)
+            hx.power_up()
+            load = hx.get_grams()
+            # TODO: log new data point here
+            #print(stepper.getDisplacement())
+        displacement = stepper.stopMoving()
+        
+        # TODO: delete me once next section works properly
+        time.sleep(2)
+        
+        # once the target load is achieved, dwell at the target load for some time
+        # TODO: make sure load is maintained for the dwell time by moving the indenter up and down
+        # startTime = time.time()
+        # while time.time() < startTime + 2:
+        #     hx.power_down()
+        #     hx.power_up()
+        #     load = hx.get_grams()
+            
+        #     if load > (targetLoad + TOLERANCE):
+        #         # move up
+        #         displacement += stepper.stopMoving()
+        #         stepper.startMovingUp(stepRate)
+
+        #     elif load < (targetLoad - TOLERANCE):
+        #         # move down
+        #         displacement += stepper.stopMoving()
+        #         stepper.startMovingDown(stepRate)
+
+        #     else:
+        #         # stop moving
+        #         displacement += stepper.stopMoving()
+            
+        #     # TODO: log new data point here
+        #     #print(stepper.getDisplacement())
+
+        # move the indenter up by the number of steps we moved it down
+        # TODO: implement the above comment
+        stepper.startMovingUp(stepRate)
+        while(abs(displacement) > abs(stepper.getDisplacement()) and not killMeasurement):
+            hx.power_down()
+            time.sleep(.001)
+            hx.power_up()
+            load = hx.get_grams()
+            
+            #TODO: log data here
+            
+        stepper.stopMoving()
+        
+    except (KeyboardInterrupt, SystemExit):
+        stepper.stopMoving()
+        cleanAndExit()
+
     return
