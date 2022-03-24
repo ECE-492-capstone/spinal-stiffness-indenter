@@ -39,7 +39,7 @@ class MainWindow(QMainWindow):
         self.showFullScreen()
 
         self.sig = Sig()
-        self.sig.sig.connect(MainWindow._unblank())
+        self.sig.sig.connect(_unblank)
 
         # initialize the firmware/back end functionality
         self.indenter = Indenter(self.plotWidget)
@@ -139,17 +139,6 @@ class MainWindow(QMainWindow):
         self.sig.sig.emit()
 
 
-    @QtCore.pyqtSlot
-    @staticmethod
-    def _unblank(self):
-        print("I am unblanking")
-        global toBlank
-        for i in toBlank:
-            print(i)
-            i.setText("potato")
-            i.setEnabled(True)
-
-
     def startMeasurement(self):
         preload = int(self.preloadDisplay.text()[:-2])
         maxLoad = int(self.maxLoadDisplay.text()[:-2])
@@ -173,3 +162,13 @@ class MainWindow(QMainWindow):
     def exitProgram(self):
         self.indenter.emergencyStop()
         sys.exit()
+
+@QtCore.pyqtSlot
+# @staticmethod
+def _unblank(self):
+    print("I am unblanking")
+    global toBlank
+    for i in toBlank:
+        print(i)
+        i.setText("potato")
+        i.setEnabled(True)
