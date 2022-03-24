@@ -165,7 +165,7 @@ class MainWindow(QMainWindow):
 
 @QtCore.pyqtSlot
 # @staticmethod
-def _unblank(self):
+def _unblank():
     print("I am unblanking")
     global toBlank
     for i in toBlank:
