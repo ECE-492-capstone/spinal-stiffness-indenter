@@ -1,5 +1,6 @@
 
 # UI imports
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.uic import loadUi
 from PyQt5.QtWidgets import *
 
@@ -18,6 +19,8 @@ DEFAULT_PRELOAD = "5"
 DEFAULT_PRELOAD_TIME = "1"
 DEFAULT_STEP_RATE = "1500"
 
+toBlank = None
+
 class MainWindow(QMainWindow):
 
     def __init__(self, dir):
@@ -30,6 +33,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Indenter Control Panel")
         self.showFullScreen()
 
+        self.sig = pyqtSignal()
+        self.sig.connect(MainWindow._unblank())
+
         # initialize the firmware/back end functionality
         self.indenter = Indenter(self.plotWidget)
 
@@ -37,7 +43,8 @@ class MainWindow(QMainWindow):
         signal.signal(signal.SIGUSR1, self.unblank)
 
         # the buttons to blank during a measurement
-        self.toBlank = [self.clearButton, self.loadButton, self.saveButton, self.moveUpButton, self.moveDownButton,
+        global toBlank
+        toBlank = [self.clearButton, self.loadButton, self.saveButton, self.moveUpButton, self.moveDownButton,
                     self.preloadIncButton, self.preloadDecButton, self.preloadTimeIncButton, self.preloadTimeDecButton,
                     self.maxLoadIncButton, self.maxLoadDecButton, self.maxLoadTimeIncButton, self.maxLoadTimeDecButton,
                     self.stepRateIncButton, self.stepRateDecButton]
@@ -123,9 +130,15 @@ class MainWindow(QMainWindow):
         #self.indenter.loadAndShowResults("/home/pi/spinal-stiffness-indenter/sample data/2021-12-5-15-19-34.csv")
 
 
-    def unblank(self, signum, frame):
+    def unblank(self, *args):
+        self.sig.emit()
+
+
+    @staticmethod
+    def _unblank(self):
         print("I am unblanking")
-        for i in self.toBlank:
+        global toBlank
+        for i in toBlank:
             print(i)
             i.setText("potato")
             i.setEnabled(True)
@@ -139,7 +152,8 @@ class MainWindow(QMainWindow):
         stepRate = int(self.stepRateDisplay.text())
 
         # disable some buttons during the measurement
-        for i in self.toBlank:
+        global toBlank
+        for i in toBlank:
             i.setEnabled(False)
         
         # if the preload is larger than the max load, issue a warning
