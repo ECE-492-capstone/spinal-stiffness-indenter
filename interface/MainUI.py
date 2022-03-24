@@ -21,6 +21,11 @@ DEFAULT_STEP_RATE = "1500"
 
 toBlank = None
 
+
+class Sig(QWidget):
+    sig = pyqtSignal()
+
+
 class MainWindow(QMainWindow):
 
     def __init__(self, dir):
@@ -33,8 +38,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Indenter Control Panel")
         self.showFullScreen()
 
-        self.sig = pyqtSignal()
-        self.sig.connect(MainWindow._unblank())
+        self.sig = Sig()
+        self.sig.sig.connect(MainWindow._unblank())
 
         # initialize the firmware/back end functionality
         self.indenter = Indenter(self.plotWidget)
@@ -131,9 +136,10 @@ class MainWindow(QMainWindow):
 
 
     def unblank(self, *args):
-        self.sig.emit()
+        self.sig.sig.emit()
 
 
+    @QtCore.pyqtSlot
     @staticmethod
     def _unblank(self):
         print("I am unblanking")
